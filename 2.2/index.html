@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<title>Рух тіла під кутом</title>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    text-align: center;
+    background: #f4f6f8;
+}
+
+.container {
+    margin: 20px auto;
+}
+
+input {
+    margin: 5px;
+    padding: 5px;
+}
+
+button {
+    padding: 8px 15px;
+    cursor: pointer;
+}
+
+#chart {
+    margin-top: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Моделювання руху тіла</h2>
+
+<div class="container">
+    Швидкість (v₀): <input type="number" id="v0" value="20"><br>
+    Кут (α, градуси): <input type="number" id="angle" value="45"><br>
+    g: <input type="number" id="g" value="9.8"><br>
+
+    <button onclick="start()">Запустити</button>
+</div>
+
+<div id="results"></div>
+
+<svg id="chart" width="600" height="400"></svg>
+
+<script>
+
+function start() {
+
+    const v0 = +document.getElementById("v0").value;
+    const angle = +document.getElementById("angle").value * Math.PI / 180;
+    const g = +document.getElementById("g").value;
+
+    const time = (2 * v0 * Math.sin(angle)) / g;
+    const hmax = (v0 * v0 * Math.pow(Math.sin(angle), 2)) / (2 * g);
+    const range = (v0 * v0 * Math.sin(2 * angle)) / g;
+
+    document.getElementById("results").innerHTML = `
+        Час польоту: ${time.toFixed(2)} с<br>
+        Макс. висота: ${hmax.toFixed(2)} м<br>
+        Дальність: ${range.toFixed(2)} м
+    `;
+
+    const data = [];
+    for (let t = 0; t <= time; t += 0.05) {
+        let x = v0 * Math.cos(angle) * t;
+        let y = v0 * Math.sin(angle) * t - 0.5 * g * t * t;
+        data.push({x, y});
+    }
+
+    const svg = d3.select("#chart");
+    svg.selectAll("*").remove();
+
+    const maxX = 50;
+    const maxY = 25;
+
+    const xScale = d3.scaleLinear()
+        .domain([0, maxX])
+        .range([50, 550]);
+
+    const yScale = d3.scaleLinear()
+        .domain([0, maxY])
+        .range([350, 50]);
+
+    const xAxis = d3.axisBottom(xScale);
+    const yAxis = d3.axisLeft(yScale);
+
+    svg.append("g")
+        .attr("transform", "translate(0,350)")
+        .call(xAxis);
+
+    svg.append("g")
+        .attr("transform", "translate(50,0)")
+        .call(yAxis);
+
+    const line = d3.line()
+        .x(d => xScale(d.x))
+        .y(d => yScale(d.y));
+
+    svg.append("path")
+        .datum(data)
+        .attr("d", line)
+        .attr("fill", "none")
+        .attr("stroke", "blue")
+        .attr("stroke-width", 2);
+
+    const point = svg.append("circle")
+        .attr("r", 5)
+        .attr("fill", "red");
+
+    let i = 0;
+    function animate() {
+        if (i < data.length) {
+            point
+                .attr("cx", xScale(data[i].x))
+                .attr("cy", yScale(data[i].y));
+            i++;
+            requestAnimationFrame(animate);
+        }
+    }
+
+    animate();
+}
+
+</script>
+
+</body>
+</html>

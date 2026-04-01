@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Кінематика</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root { 
+            --primary: #2c3e50; --accent: #3498db; --bg: #f8f9fa;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .app-container { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); width: 950px; }
+        .controls { 
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; 
+            margin-bottom: 20px; background: #fdfdfd; padding: 15px; border-radius: 10px; border: 1px solid #eee;
+        }
+        .input-group { display: flex; flex-direction: column; }
+        label { font-size: 11px; font-weight: 700; margin-bottom: 5px; color: #7f8c8d; text-transform: uppercase; }
+        input { padding: 8px; border: 2px solid #e2e8f0; border-radius: 6px; outline: none; }
+        input:focus { border-color: var(--accent); }
+        
+        .viz-container { 
+            position: relative; width: 100%; height: 600px; background: #fff; 
+            border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 10px; overflow: hidden; 
+        }
+        canvas, svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        
+        .buttons { display: flex; gap: 10px; margin-top: 20px; justify-content: center; }
+        button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-canvas { background: #f39c12; color: white; }
+        .btn-d3 { background: #8e44ad; color: white; }
+        .btn-clear { background: #edf2f7; color: #4a5568; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h2>Моделювання (Canvas & D3.js)</h2>
+    
+    <div class="controls">
+        <div class="input-group"><label>x₀ (м)</label><input type="number" id="x0" value="0"></div>
+        <div class="input-group"><label>y₀ (м)</label><input type="number" id="y0" value="0"></div>
+        <div class="input-group"><label>Кут (град)</label><input type="number" id="angle" value="45"></div>
+        <div class="input-group"><label>Швидкість v₀</label><input type="number" id="v0" value="40"></div>
+        <div class="input-group"><label>Прискорення a</label><input type="number" id="acc" value="5"></div>
+        <div class="input-group"><label>Колір</label><input type="color" id="lineColor" value="#e74c3c"></div>
+    </div>
+
+    <div class="viz-container" id="vizBox">
+        <canvas id="mainCanvas"></canvas>
+        <svg id="mainSvg" style="display:none;"></svg>
+    </div>
+
+    <div class="buttons">
+        <button class="btn-canvas" onclick="runCanvas()">Побудувати (Canvas)</button>
+        <button class="btn-d3" onclick="runD3()">Побудувати (D3.js)</button>
+        <button class="btn-clear" onclick="clearAll()">Очистити</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('mainCanvas');
+    const svg = d3.select("#mainSvg");
+    const ctx = canvas.getContext('2d');
+
+    const width = 950;
+    const height = 600;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const scale = 5; // 1 метр = 5 пікселів для масштабу
+
+    canvas.width = width;
+    canvas.height = height;
+
+    function getInputs() {
+        return {
+            x0: parseFloat(document.getElementById('x0').value),
+            y0: parseFloat(document.getElementById('y0').value),
+            angle: parseFloat(document.getElementById('angle').value) * (Math.PI / 180),
+            v0: parseFloat(document.getElementById('v0').value),
+            a: parseFloat(document.getElementById('acc').value),
+            color: document.getElementById('lineColor').value
+        };
+    }
+
+    function drawCanvasAxes() {
+        ctx.setLineDash([]);
+        ctx.strokeStyle = "#bbb";
+        ctx.lineWidth = 1;
+        ctx.fillStyle = "#666";
+        ctx.font = "10px Arial";
+
+        ctx.beginPath();
+        ctx.moveTo(0, centerY); ctx.lineTo(width, centerY);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, 0); ctx.lineTo(centerX, height);
+        ctx.stroke();
+
+        for (let i = -100; i <= 100; i += 10) {
+            let posX = centerX + i * scale;
+            let posY = centerY - i * scale;
+
+            ctx.moveTo(posX, centerY - 5); ctx.lineTo(posX, centerY + 5);
+            if (i !== 0) ctx.fillText(i/10, posX - 5, centerY + 20);
+
+            ctx.moveTo(centerX - 5, posY); ctx.lineTo(centerX + 5, posY);
+            if (i !== 0) ctx.fillText(i/10, centerX + 10, posY + 5);
+        }
+        ctx.stroke();
+        ctx.font = "bold 12px Arial";
+        ctx.fillText("X", width - 15, centerY - 10);
+        ctx.fillText("Y", centerX + 10, 15);
+    }
+
+    function runCanvas() {
+        canvas.style.display = "block";
+        document.getElementById('mainSvg').style.display = "none";
+        const p = getInputs();
+        drawCanvasAxes();
+        
+        ctx.beginPath();
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+
+        let startX = centerX + p.x0 * scale;
+        let startY = centerY - p.y0 * scale;
+        ctx.moveTo(startX, startY);
+
+        for (let t = 0; t < 20; t += 0.1) {
+            let physX = p.x0 + (p.v0 * Math.cos(p.angle) * t) + (0.5 * p.a * Math.cos(p.angle) * t * t);
+            let physY = p.y0 + (p.v0 * Math.sin(p.angle) * t) + (0.5 * p.a * Math.sin(p.angle) * t * t);
+            
+            ctx.lineTo(centerX + physX * scale, centerY - physY * scale);
+        }
+        ctx.stroke();
+    }
+
+    function runD3() {
+        canvas.style.display = "none";
+        const svgEl = document.getElementById('mainSvg');
+        svgEl.style.display = "block";
+        svg.selectAll("*").remove();
+
+        const p = getInputs();
+        const data = [];
+        for (let t = 0; t < 20; t += 0.1) {
+            let x = p.x0 + (p.v0 * Math.cos(p.angle) * t) + (0.5 * p.a * Math.cos(p.angle) * t * t);
+            let y = p.y0 + (p.v0 * Math.sin(p.angle) * t) + (0.5 * p.a * Math.sin(p.angle) * t * t);
+            data.push({x: centerX + x * scale, y: centerY - y * scale});
+        }
+
+        const xS = d3.scaleLinear().domain([-10, 10]).range([centerX - 100*scale, centerX + 100*scale]);
+        const yS = d3.scaleLinear().domain([-10, 10]).range([centerY + 100*scale, centerY - 100*scale]);
+
+        svg.append("g").attr("transform", `translate(0,${centerY})`).call(d3.axisBottom(xS).ticks(20));
+        svg.append("g").attr("transform", `translate(${centerX},0)`).call(d3.axisLeft(yS).ticks(20));
+
+        const line = d3.line().x(d => d.x).y(d => d.y);
+        svg.append("path").datum(data).attr("fill", "none").attr("stroke", p.color)
+           .attr("stroke-width", 2).attr("stroke-dasharray", "5,3").attr("d", line);
+    }
+
+    function clearAll() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        svg.selectAll("*").remove();
+        if(canvas.style.display !== "none") drawCanvasAxes();
+    }
+
+    drawCanvasAxes(); 
+</script>
+</body>
+</html>
